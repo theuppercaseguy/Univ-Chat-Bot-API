@@ -5,14 +5,14 @@ def view_chat_history():
     cursor = conn.cursor()
 
     # Fetch all rows from the chat_history table
-    cursor.execute("SELECT * FROM chat_history")
+    cursor.execute("SELECT * FROM History")
     rows = cursor.fetchall()
 
     print("Chat History:")
-    print("ID\t\tQuestion\t\tAnswer")
-    print("-" * 50)
+    print("ID\t\tUSER\t\tQuestion\t\tAnswer")
+    print("-" * 80)
     for row in rows:
-        print(f"{row[0]}\t\t{row[1]}\t\t{row[2]}")
+        print(f"{row[0]}\t\t{row[1]}\t\t{row[2]}\t\t{row[3]}")
 
     conn.close()
 

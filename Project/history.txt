@@ -19,3 +19,30 @@ Q: what is my name. ANS: a mother
 Q: list all the departments at gik. ANS: gik is a gik community
 Q: when are admissions being open in giki. ANS: april
 Q: what is gik rectors name. ANS: Helpful
+Q: what is your name. ANS: elisabeth
+Q: what is your name. ANS: a nanny
+Q: what is your name. ANS: a nanny
+Q: what is my name. ANS: adrian
+Q: what sis your name          . ANS: a nanny
+Q: hello. ANS: a mother
+Q: how are you. ANS: a narrator
+Q: nice. ANS: Norma
+Q: hello. ANS: a teacher
+Q: hello. ANS: a teacher
+Q: nice. ANS: a teacher
+Q: how are you. ANS: I'm fine.
+Q: how are you. ANS: I'm fine.
+Q: nice. ANS: a teacher
+Q: qwer. ANS: a qwer
+Q: nice. ANS: a teacher
+Q: nice. ANS: a teacher
+Q: nice. ANS: a teacher
+Q: asfd. ANS: Helpful
+Q: nice. ANS: a teacher
+Q: what is your name. ANS: a nanny
+Q: nice. ANS: a nanny
+Q: what is my name. ANS: a teacher
+Q: hello. ANS: a nanny
+Q: nice. ANS: a nanny
+Q: what is your name. ANS: a nanny
+Q: qwrty. ANS: Norma
