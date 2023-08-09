@@ -173,10 +173,6 @@ async def get_chat_me(request: Request, query: str = None, user_id: str = defaul
 
 
 
-class RequestBot(BaseModel):
-    query:  str
-    userid: str
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

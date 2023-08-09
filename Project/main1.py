@@ -1,42 +1,37 @@
-from fastapi import FastAPI, Request,Body,HTTPException
-from fastapi.responses import HTMLResponse,JSONResponse
-from fastapi.templating import Jinja2Templates
-from fastapi import FastAPI, Request
-import json
-
-from langchain.chains import ConversationalRetrievalChain, RetrievalQA
-from langchain import HuggingFaceHub
-from langchain.vectorstores import Chroma
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.llms import OpenAI
+from langchain.chains import ConversationalRetrievalChain
 from langchain.document_loaders import TextLoader
+from langchain.memory import ConversationBufferMemory
 import os
-from langchain.embeddings import HuggingFaceEmbeddings
+from fastapi import FastAPI, Request, HTTPException
+import json
 from langchain import PromptTemplate
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-
 from fastapi.middleware.cors import CORSMiddleware
 
-# with open("cleanScrape.txt", "r", encoding="utf-8") as file:
-#     content = file.read()
-
-loader = TextLoader("scrapped_Data.txt")
-docs = loader.load()
-text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-docs= text_splitter.split_documents(docs)
-
-
-os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
-embeddings = HuggingFaceEmbeddings()
-
-
-from langchain.chains import ConversationalRetrievalChain
-from langchain import HuggingFaceHub
-from langchain.vectorstores import Chroma
+os.environ["OPENAI_API_KEY"] = "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"
 
 class UserData:
-    def __init__(self, users):
-        self.users = users
+  def __init__(self, users):
+    self.users = users
+
+
+
+# loader = TextLoader("./cleanScrape.txt")
+loader = TextLoader("./scrapped_Data.txt")
+documents = loader.load()
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+documents = text_splitter.split_documents(documents)
+
+embeddings = OpenAIEmbeddings()
+vectorstore = FAISS.from_documents(documents, embeddings)
+
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 
 template = """As a GIKI website chat bot, your goal is to provide accurate and helpful information about GIKI,
@@ -78,39 +73,24 @@ Remember to follow these instructions to provide the best assistance to the user
 """
 
 
-docsearch = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
-repo_id="google/flan-t5-base"
-
-llm = HuggingFaceHub( repo_id=repo_id, model_kwargs={"temperature": 0, "max_length":512})
-
 qa = ConversationalRetrievalChain.from_llm(
-    llm = llm,
-    retriever=docsearch.as_retriever(),
-    return_source_documents=True,
-  )
+      OpenAI(temperature=0.5), 
+      vectorstore.as_retriever(), 
 
-chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            chain_type="stuff",
-            retriever=docsearch.as_retriever(),
-                chain_type_kwargs={
-                "prompt": PromptTemplate(
-                template=template,
-                input_variables=["context","question"],
-            ),
-        },)
+    )
 
-import sys
-history = []
-past = []
-
+chat_history = []
+def QuestionAnswers(que, chat_history):
+  result = qa({"question": que, "chat_history": chat_history})
+  return result["answer"]
 
 app = FastAPI()
 
-
-# Create a templates object using Jinja2Templates
 templates = Jinja2Templates(directory="./templates")
-
+@app.get("/",response_class=HTMLResponse)
+async def root(request: Request):
+   return templates.TemplateResponse("index.html",context={"request":request,})
+  
 def read_database():
     try:
         with open("./database.json", "r") as file:
@@ -120,62 +100,71 @@ def read_database():
         return {"users": {}}
 
 def write_database(data):
-    with open("./database.json", "w") as file:
+    database_file_path = os.path.join(os.getcwd(), "database.json")
+    # print("write: ", database_file_path, data)
+    with open(database_file_path, "w") as file:
         json.dump(data, file)
 
 def store_in_database(user_id: str, query: str, answer: str):
-    data = read_database()
-    if user_id not in data["users"]:
-        data["users"][user_id] = []
+  data = read_database()
+  # print("database: ", data)
+    
+  if user_id not in data["users"]:
+    data["users"][user_id] = []
+    
+  if isinstance(data["users"][user_id], list):
     data["users"][user_id].append({"question": query, "answer": answer})
-    write_database(data)
+  else:
+    existing_entry = {
+      "question": data["users"][user_id]["question"],
+      "answer": data["users"][user_id]["answer"]
+    }
+    data["users"][user_id] = [existing_entry, {"question": query, "answer": answer}]
+  write_database(data)
+  # print("dataLLLL", data)
 
 def get_user_history(user_id: str):
     data = read_database()
     if user_id in data["users"]:
-        return UserData(users=data["users"])  # Pass the whole data["users"] as the argument
+        return data["users"]  # Pass the whole data["users"] as the argument
     else:
-        return UserData(users={user_id: []})
+        return {user_id: []}
 
-@app.get("/",response_class=HTMLResponse)
-async def root(request: Request):
-   return templates.TemplateResponse("index.html",context={"request":request,})
-  
 default_user_id = "123"
-def process_query(user_id: str, query: str, user_history: UserData):
-    if not query:
-        return None
-
-    chat_history = [(entry["question"], entry["answer"]) for entry in user_history.users[user_id]]
+def process_query(user_id: str, query: str, user_history:list):
     
-    #result = qa({'question': query, 'chat_history': chat_history})
-    result = chain.run(query)
-    store_in_database(user_id, query, result)
+    user_chat_history = user_history[user_id]
+    
+    chat_history = list()
+    for chat in user_chat_history:
+      chat_history.append(chat)
 
-    return result
-    #return chat_history
+    print("Chat history2: ",chat_history)
+    chat_history = [chat["question"] + ": " + chat["answer"] for chat in user_chat_history]
 
+    
+    result = QuestionAnswers(query, chat_history)
+    # store_in_database(user_id, query, result)
+
+    return result    
+    # return ""
+    
 @app.get("/chat_me", response_class=HTMLResponse)
 async def get_chat_me(request: Request, query: str = None, user_id: str = default_user_id):
 
-    print(f"Received User ID: {user_id}")
-
-    user_history = get_user_history(str(user_id))
-    
+    user_history = get_user_history(user_id)
+    # print("\n\n\nuser           ", user_history,"\n\n")
     response_text = process_query(user_id, query, user_history)
 
     return templates.TemplateResponse("index.html", {
         "user_id": user_id,
         "request": request, 
         "response_text": response_text, 
-        "chat_history": user_history.users[user_id],  # Pass the chat history for the specific user
+        "chat_history": user_history
     })
 
 
 
-class RequestBot(BaseModel):
-    query:  str
-    userid: str
 
 app.add_middleware(
     CORSMiddleware,
@@ -190,16 +179,14 @@ async def chat(request_data:list):
     print(request_data)
     user_id = "123"  
     user_history = get_user_history(user_id)
-    # response_text = process_query(user_id, query, user_history)
-    # return {"response": "response_text"}
     
     for item in request_data:
         query = item.get("content")
         role = item.get("role")
         if query:
-            # Process the query here and generate a response
             response_text = process_query(user_id, query, user_history)
             item["response"] = response_text
             item["role"] = role
 
     return request_data
+
